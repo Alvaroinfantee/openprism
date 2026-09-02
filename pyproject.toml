@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openprism-fusion"
-version = "0.3.0"
+version = "0.4.0.dev0"
 description = "Evidence-preserving visible/thermal fusion and UAV terrain mapping for models and operators"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,10 +30,15 @@ dependencies = [
 
 [project.optional-dependencies]
 pixhawk = ["pymavlink==2.4.49"]
+learned = ["torch>=2.4,<3"]
+evaluation = ["torch>=2.4,<3", "torchvision>=0.19,<1"]
 dev = ["build>=1.2", "jsonschema>=4.23"]
 
 [project.scripts]
 openprism = "openprism.__main__:main"
+openprism-train-egtcf = "openprism.learning.training:main"
+openprism-evaluate-egtcf = "openprism.learning.evaluation:main"
+openprism-evaluate-llvip-detection = "openprism.learning.detection_evaluation:main"
 
 [project.urls]
 Documentation = "https://github.com/Alvaroinfantee/openprism#readme"
@@ -50,6 +55,7 @@ exclude = ["paper*", "tests*", "tooling*"]
 [tool.setuptools.package-data]
 openprism = [
   "docs/*.md",
+  "learning/*.py",
   "policy/*.json",
   "spec/*.json",
   "web/*.html",

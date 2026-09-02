@@ -1,0 +1,42 @@
+{
+  "manifest_version": 1,
+  "prepared_at": "2026-09-02",
+  "redistribution_policy": "OpenPRISM records publisher sources and integrity digests but does not mirror third-party imagery.",
+  "excluded": [
+    "SEW Multimodal AMR"
+  ],
+  "datasets": {
+    "llvip": {
+      "name": "LLVIP",
+      "source_repository": "https://github.com/bupt-ai-cz/LLVIP",
+      "source_commit_at_acquisition": "c1a655cce437ebfd990a97b04fc48fbb99f4c47b",
+      "download_documentation": "https://github.com/bupt-ai-cz/LLVIP/blob/main/download_dataset.md",
+      "publisher_download_url": "https://drive.google.com/file/d/1VTlT3Y7e1h-Zsne4zahjx5q0TK2ClMVv/view",
+      "archive_bytes": 4003858172,
+      "archive_sha256": "b3b55475c093ac54663c467859eb31a82b840b53a7196ad1887cb547e4518b45",
+      "license_summary": "Custom terms; non-commercial use only; redistribution is not expressly granted.",
+      "license_url": "https://github.com/bupt-ai-cz/LLVIP/blob/main/Term%20of%20Use%20and%20License.md"
+    },
+    "msrs": {
+      "name": "MSRS",
+      "source_repository": "https://github.com/Linfeng-Tang/MSRS",
+      "source_commit_at_acquisition": "5fa66e33c5ba875eec4de4f5a5bf609bdcc566c5",
+      "publisher_download_url": "https://codeload.github.com/Linfeng-Tang/MSRS/zip/refs/heads/main",
+      "archive_bytes": 672760606,
+      "archive_sha256": "d82c12cc491699143f5caeb5ee7bab7608d10ac730bc9c0d24c02e26a2f22cbf",
+      "license_summary": "No explicit license file was present in the source repository at acquisition; redistribution rights are unspecified."
+    },
+    "caltech_aerial_rgbt": {
+      "name": "Caltech Aerial RGB-Thermal Dataset in the Wild",
+      "version": "1.0.0",
+      "source_record": "https://data.caltech.edu/records/cks6g-ps927",
+      "doi": "10.22002/cks6g-ps927",
+      "publisher_download_url": "https://data.caltech.edu/records/cks6g-ps927/files/labeled_rgbt_pairs.zip?download=1",
+      "archive_bytes": 4287170398,
+      "archive_md5": "22f42923694e724d4b7e354bace12389",
+      "archive_sha256": "92e00cd980e4c87f6b7705abdc203ac7cf34feaae01200c5b49508cdd8ca2320",
+      "license": "CC BY-NC 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-nc/4.0/"
+    }
+  }
+}

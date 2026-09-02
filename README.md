@@ -32,7 +32,10 @@ Then open <http://127.0.0.1:8765>. Use `--no-browser` when running headless.
 
 The console reads separately staged LLVIP, MSRS, and Caltech Aerial RGB-T
 datasets from `data/`. It does not copy, rename, or rewrite publisher imagery,
-and the repository does not redistribute those archives.
+and the repository does not redistribute those archives. See the
+[dataset acquisition guide](DATASETS.md), exact
+[source manifest](dataset_sources.json), and validated
+[inventory](dataset_inventory.json).
 
 ## Install
 
@@ -44,7 +47,7 @@ openprism
 
 Pass `--data-root /path/to/data` when the archives are not under the current
 working directory. Install `.[pixhawk]` only when MAVLink log/live support is
-needed.
+needed. Install `.[learned]` to train or run the optional PRISM-EGT model.
 
 ## Automatic fusion and AI-ready evidence
 
@@ -69,6 +72,26 @@ The digest includes named tensor channels and statistics, scene evidence,
 recommendation confidence and rationale, the exact policy artifact hash, and a
 machine-readable safety contract. See [Automatic Fusion](openprism/docs/AUTOMATIC_FUSION.md)
 and the [digest schema](openprism/spec/ai-scene-digest.schema.json).
+
+### Experimental learned fusion
+
+PRISM-EGT adds a dual-encoder learned selector with task conditioning,
+per-pixel reliability, calibration-targeted abstention/uncertainty outputs, and optional relative
+Pixhawk pose/time context. Its thermal contribution is bounded by the product
+of sensor validity, registration support, and timing support for every pixel;
+learned weights cannot override the deterministic evidence gates.
+
+```bash
+python -m pip install -e ".[learned]"
+openprism-train-egtcf --data-root /path/to/data --output-dir runs/prism-egt
+openprism --data-root /path/to/data --learned-checkpoint runs/prism-egt/best.pt
+```
+
+No trained checkpoint is distributed and no benchmark-superiority claim is
+made yet. Development-subset artifacts are marked as non-paper results, and
+the final-test CLI remains locked until model selection is frozen. See
+[PRISM-EGT learned fusion](openprism/docs/LEARNED_FUSION.md) and the
+[experiment protocol](paper/tmlr/EXPERIMENT_PROTOCOL.md).
 
 ## Build the PRISM Atlas demonstration
 
@@ -194,6 +217,9 @@ adapters are added.
 - deterministic confidence-aware visible/thermal fusion;
 - an explainable, versioned automatic fusion controller whose outputs remain
   subordinate to evidence safety gates;
+- optional PRISM-EGT learned fusion with task/pose conditioning, reliability,
+  abstention, predictive uncertainty, provenance-bearing checkpoints, and a
+  parameter-independent thermal-contribution safety bound;
 - an image-free, schema-backed AI scene digest with channel statistics,
   provenance, and policy artifact hashing;
 - an 11-channel machine projection, including source-qualified registration
@@ -234,6 +260,7 @@ openprism/
 ├── synchronization.py    asynchronous sensor watermarking and fusion gates
 ├── registration.py       identity/declaration and residual registration
 ├── fusion.py             machine tensor + deterministic operator renderer
+├── learning/             PRISM-EGT model, loss, data protocol, training, runtime
 ├── pixhawk.py            strict MAVLink capture/pose bridge and ODM priors
 ├── mapping.py            geodesy, ray casting, uncertainty, orthomosaic grid
 ├── atlas.py              mission gates, dynamic objects, atomic map bundles
@@ -247,6 +274,8 @@ openprism/
 ## Important limitations
 
 - This is a tested **reference baseline**, not a certified operational system.
+- PRISM-EGT has passed unit and development smoke tests only; the repository
+  does not yet contain paper-quality downstream results or a validated model.
 - The three archives contain paired RGB/thermal imagery; they do not validate a
   live hardware clock, camera calibration, rolling-shutter compensation, lidar,
   radar, GNSS, or IMU integration.

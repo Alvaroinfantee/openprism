@@ -1,0 +1,34 @@
+{
+  "manifest_version": 1,
+  "validated_at": "2026-09-02",
+  "validator": "tooling/validate_multispectral_datasets.py",
+  "valid": true,
+  "datasets": {
+    "llvip": {
+      "valid": true,
+      "train_pairs": 12025,
+      "test_pairs": 3463,
+      "annotations": 15488,
+      "unmatched": 0
+    },
+    "msrs": {
+      "valid": true,
+      "train_triplets": 1083,
+      "test_triplets": 361,
+      "detection_triplets": 80,
+      "unmatched": 0
+    },
+    "caltech_aerial_rgbt": {
+      "valid": true,
+      "paired_samples": 2282,
+      "modalities": [
+        "color",
+        "thermal8",
+        "thermal16",
+        "annotations",
+        "thermal_annotation_overlay"
+      ],
+      "unmatched": 0
+    }
+  }
+}

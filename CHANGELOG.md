@@ -7,6 +7,21 @@ Versioning after its first public release.
 
 - Prepare independent packaging, community files, CI, JOSS manuscript, and
   contribution guidance.
+- Add exact publisher URLs, source revisions, archive digests, and a sanitized
+  inventory for reproducible acquisition of the three third-party datasets.
+- Add PRISM-EGT evidence-gated task-conditioned learned fusion, safe checkpoint
+  loading, training and locked-test evaluation CLIs, operator integration, and
+  a leakage-aware LLVIP/MSRS/Caltech experiment protocol.
+- Add overlap-tiled full-resolution inference and executable RGB-only,
+  thermal-only, average, maximum, and deterministic OpenPRISM proxy baselines.
+- Add a test-locked, checksum-recording LLVIP person-detection probe with
+  identical frozen inference across source, built-in fusion, PRISM-EGT, and
+  externally generated learned-baseline views.
+- Add a revision-verifying, weights-only external runner for reviewed
+  SeaFusion, CDDFuse, PAIF, and C2RF checkouts without vendoring third-party
+  code.
+- Add an official-format anonymous TMLR manuscript draft whose result cells are
+  deliberately blocked until full baselines and final evaluation are complete.
 
 ## [0.3.0] - 2026-09-02
 
