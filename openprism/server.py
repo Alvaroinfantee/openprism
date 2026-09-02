@@ -19,7 +19,7 @@ from urllib.parse import parse_qs, urlparse
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 
-from .autonomy import AdaptiveFusionController
+from .autonomy import AdaptiveFusionController, FusionControlRecommendation
 from .datasets import DEFAULT_DATA_ROOT, DatasetCatalog
 from .fusion import (
     EvidenceFusionEngine,
@@ -52,16 +52,38 @@ class OperatorApplication:
         self,
         data_root: Path | str = DEFAULT_DATA_ROOT,
         atlas_root: Path | str = DEFAULT_ATLAS_ROOT,
+        learned_checkpoint: Path | str | None = None,
     ) -> None:
         self.catalog = DatasetCatalog(data_root)
         self.engine = EvidenceFusionEngine()
         self.controller = AdaptiveFusionController()
         self.atlas_root = Path(atlas_root).resolve()
+        self.learned_engine = None
+        if learned_checkpoint is not None:
+            # Keep PyTorch optional for the deterministic installation.
+            from .learning import LearnedFusionEngine
+
+            self.learned_engine = LearnedFusionEngine.from_checkpoint(
+                str(learned_checkpoint), base_engine=self.engine
+            )
 
     def catalog_payload(self) -> dict[str, Any]:
         return {
             "schema_version": "openprism.operator-api/0.1",
             "datasets": self.catalog.datasets(),
+            "learned_fusion": {
+                "available": self.learned_engine is not None,
+                "model_id": (
+                    self.learned_engine.checkpoint.model_id
+                    if self.learned_engine is not None
+                    else None
+                ),
+                "validation_scope": (
+                    self.learned_engine.checkpoint.validation_scope
+                    if self.learned_engine is not None
+                    else None
+                ),
+            },
         }
 
     @staticmethod
@@ -660,12 +682,36 @@ class OperatorApplication:
         recommendation, policy_features, probe = self.controller.recommend(
             frame, self.engine
         )
-        applied_gain = recommendation.thermal_gain if automatic_control else gain
-        output = (
-            probe
-            if applied_gain == 1.0
-            else self.engine.fuse(frame, FusionConfig(thermal_gain=applied_gain))
-        )
+        learned_active = automatic_control and self.learned_engine is not None
+        if learned_active:
+            output = self.learned_engine.fuse(frame, task="automatic")
+            learned_alpha = output.machine_tensor[
+                output.channel_names.index("thermal_contribution")
+            ]
+            applied_gain = round(float(np.mean(learned_alpha)) * 2.5, 4)
+            if output.provenance.get("learned_fusion_applied"):
+                selected = str(output.provenance["selected_task"])
+                scores = dict(output.provenance["task_probabilities"])
+                recommendation = FusionControlRecommendation(
+                    operator_preset=selected,
+                    thermal_gain=applied_gain,
+                    confidence=float(scores[selected]),
+                    status="recommended",
+                    reasons=(
+                        "PRISM-EGT selected the highest-probability mission view",
+                        "thermal contribution is bounded by validity, registration, and timing support",
+                        f"mean learned abstention={float(np.mean(output.machine_tensor[output.channel_names.index('learned_abstention_probability')])):.3f}",
+                        f"checkpoint scope={output.provenance.get('validation_scope', 'unknown')}",
+                    ),
+                    scores=scores,
+                )
+        else:
+            applied_gain = recommendation.thermal_gain if automatic_control else gain
+            output = (
+                probe
+                if applied_gain == 1.0
+                else self.engine.fuse(frame, FusionConfig(thermal_gain=applied_gain))
+            )
         ai_digest = self.controller.scene_digest(
             frame,
             output,
@@ -674,6 +720,19 @@ class OperatorApplication:
             automatic_control=automatic_control,
             applied_thermal_gain=applied_gain,
         )
+        ai_digest["learned_fusion"] = {
+            "available": self.learned_engine is not None,
+            "active": bool(output.provenance.get("learned_fusion_applied", False)),
+            "model_id": output.provenance.get("model_id"),
+            "validation_scope": output.provenance.get("validation_scope"),
+            "selected_task": output.provenance.get("selected_task"),
+            "task_probabilities": dict(
+                output.provenance.get("task_probabilities", {})
+            ),
+            "selective_fusion_invariant": dict(
+                output.provenance.get("selective_fusion_invariant", {})
+            ),
+        }
         registration_mean = float(np.mean(output.registration_support))
         fusion_mean = float(np.mean(output.fusion_support))
         annotation_source = str(frame.provenance.get("annotation_source", "none"))
@@ -711,7 +770,16 @@ class OperatorApplication:
                 "registration_evidence_kind": "publisher_declared_prior",
                 "fusion_confidence": None,
                 "fusion_support_score": fusion_mean,
-                "fusion_evidence_kind": "deterministic_heuristic_support",
+                "fusion_evidence_kind": (
+                    "learned_selective_support"
+                    if output.provenance.get("learned_fusion_applied")
+                    else "deterministic_heuristic_support"
+                ),
+                "learned_fusion_active": bool(
+                    output.provenance.get("learned_fusion_applied", False)
+                ),
+                "learned_model_id": output.provenance.get("model_id"),
+                "learned_validation_scope": output.provenance.get("validation_scope"),
                 "registration_status": "declared_rectified_not_measured",
                 "pixel_fusion_applied": output.pixel_fusion_applied,
                 "synchronization_state": output.synchronization_state,
@@ -748,8 +816,14 @@ class OperatorApplication:
             "provenance": {
                 "algorithm": output.provenance["algorithm"],
                 "source_sensors": list(output.provenance["source_sensors"]),
-                "registration": dict(output.provenance["registration"]),
+                "registration": dict(output.provenance.get("registration", {})),
                 "non_hallucinatory": True,
+                "learned_fusion": bool(
+                    output.provenance.get("learned_fusion_applied", False)
+                ),
+                "model_artifact_sha256": output.provenance.get(
+                    "model_artifact_sha256"
+                ),
             },
         }
 
@@ -908,8 +982,9 @@ def make_server(
     port: int = 8765,
     data_root: Path | str = DEFAULT_DATA_ROOT,
     atlas_root: Path | str = DEFAULT_ATLAS_ROOT,
+    learned_checkpoint: Path | str | None = None,
 ) -> ThreadingHTTPServer:
-    application = OperatorApplication(data_root, atlas_root)
+    application = OperatorApplication(data_root, atlas_root, learned_checkpoint)
     return ThreadingHTTPServer((host, port), build_handler(application))
 
 
@@ -918,12 +993,14 @@ def serve(
     port: int = 8765,
     data_root: Path | str = DEFAULT_DATA_ROOT,
     atlas_root: Path | str = DEFAULT_ATLAS_ROOT,
+    learned_checkpoint: Path | str | None = None,
 ) -> None:
     server = make_server(
         host=host,
         port=port,
         data_root=data_root,
         atlas_root=atlas_root,
+        learned_checkpoint=learned_checkpoint,
     )
     print(f"OpenPRISM operator canvas: http://{host}:{server.server_port}")
     print("Press Ctrl+C to stop.")
