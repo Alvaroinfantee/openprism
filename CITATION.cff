@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use OpenPRISM in research, please cite the software release and the JOSS paper after publication."
+title: "OpenPRISM: evidence-preserving multisensor fusion and UAV terrain mapping"
+type: software
+version: 0.3.0
+date-released: 2026-09-02
+authors:
+  - family-names: "Infante Flores"
+    given-names: "Alvaro"
+    affiliation: "Independent Researcher"
+    orcid: "https://orcid.org/0009-0002-0680-9612"
+repository-code: "https://github.com/Alvaroinfantee/openprism"
+url: "https://github.com/Alvaroinfantee/openprism"
+license: MIT
+keywords:
+  - multisensor fusion
+  - thermal imaging
+  - computer vision
+  - unmanned aerial vehicles
+  - terrain mapping
+preferred-citation:
+  type: article
+  title: "OpenPRISM: evidence-preserving multisensor fusion for machines, operators, and aerial maps"
+  authors:
+    - family-names: "Infante Flores"
+      given-names: "Alvaro"
+      affiliation: "Independent Researcher"
+      orcid: "https://orcid.org/0009-0002-0680-9612"
+  journal: "Journal of Open Source Software"
+  year: 2026

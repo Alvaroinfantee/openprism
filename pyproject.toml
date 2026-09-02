@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openprism-fusion"
+version = "0.3.0"
+description = "Evidence-preserving visible/thermal fusion and UAV terrain mapping for models and operators"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "Alvaro Infante Flores"}]
+keywords = ["sensor-fusion", "thermal", "computer-vision", "uav", "mapping"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: GIS",
+]
+dependencies = [
+  "numpy>=2.2,<3",
+  "Pillow>=11,<13",
+]
+
+[project.optional-dependencies]
+pixhawk = ["pymavlink==2.4.49"]
+dev = ["build>=1.2", "jsonschema>=4.23"]
+
+[project.scripts]
+openprism = "openprism.__main__:main"
+
+[project.urls]
+Documentation = "https://github.com/Alvaroinfantee/openprism#readme"
+Issues = "https://github.com/Alvaroinfantee/openprism/issues"
+Repository = "https://github.com/Alvaroinfantee/openprism"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["openprism*"]
+exclude = ["paper*", "tests*", "tooling*"]
+
+[tool.setuptools.package-data]
+openprism = [
+  "docs/*.md",
+  "policy/*.json",
+  "spec/*.json",
+  "web/*.html",
+  "web/*.css",
+  "web/*.js",
+]
