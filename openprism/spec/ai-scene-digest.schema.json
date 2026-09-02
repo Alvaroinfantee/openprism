@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openprism.dev/schema/ai-scene-digest-1.0.json",
+  "title": "OpenPRISM AI Scene Digest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "frame_id",
+    "summary",
+    "control",
+    "evidence_features",
+    "machine_projection",
+    "scene_evidence",
+    "policy_model",
+    "safety_contract"
+  ],
+  "properties": {
+    "schema_version": {"const": "openprism.ai-scene-digest/1.0"},
+    "frame_id": {"type": "string", "minLength": 1},
+    "summary": {"type": "string", "minLength": 1},
+    "control": {
+      "type": "object",
+      "required": ["mode", "applied_thermal_gain", "recommendation"],
+      "properties": {
+        "mode": {"enum": ["automatic", "manual"]},
+        "applied_thermal_gain": {"type": "number", "minimum": 0, "maximum": 2.5},
+        "recommendation": {
+          "type": "object",
+          "required": ["operator_preset", "thermal_gain", "confidence", "status", "reasons"],
+          "properties": {
+            "operator_preset": {"enum": ["navigate", "search", "terrain", "integrity"]},
+            "thermal_gain": {"type": "number", "minimum": 0, "maximum": 2.5},
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "status": {"enum": ["recommended", "safety_override"]},
+            "reasons": {"type": "array", "items": {"type": "string"}}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "evidence_features": {
+      "type": "object",
+      "additionalProperties": {"type": "number"}
+    },
+    "machine_projection": {"type": "object"},
+    "scene_evidence": {"type": "object"},
+    "policy_model": {"type": "object"},
+    "safety_contract": {"type": "object"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,511 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openprism.dev/schema/prism-frame/0.1.0",
+  "title": "OpenPRISM Frame Bundle",
+  "description": "A reversible, provenance-rich bundle of synchronized multisensor evidence. Pixel payloads are referenced as assets rather than embedded in JSON.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bundle_id",
+    "sequence",
+    "capture",
+    "reference_frame",
+    "observations",
+    "transforms",
+    "quality",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "openprism.frame/0.1"
+    },
+    "bundle_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "mission_id": {
+      "type": "string"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "capture": {
+      "$ref": "#/$defs/capture"
+    },
+    "reference_frame": {
+      "$ref": "#/$defs/referenceFrame"
+    },
+    "observations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/observation"
+      }
+    },
+    "transforms": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/transform"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "quality": {
+      "$ref": "#/$defs/quality"
+    },
+    "machine_projection": {
+      "$ref": "#/$defs/projection"
+    },
+    "operator_projection": {
+      "$ref": "#/$defs/projection"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "media_type", "sha256"],
+      "properties": {
+        "uri": {
+          "type": "string"
+        },
+        "media_type": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tai_start_ns",
+        "tai_mid_ns",
+        "tai_end_ns",
+        "clock_domain",
+        "uncertainty_ns",
+        "pairing_state"
+      ],
+      "properties": {
+        "tai_start_ns": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "tai_mid_ns": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "tai_end_ns": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "clock_domain": {
+          "type": "string"
+        },
+        "uncertainty_ns": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "pairing_state": {
+          "enum": [
+            "unknown",
+            "exact",
+            "bounded_skew",
+            "interpolated",
+            "declared_replay_aligned",
+            "late",
+            "future",
+            "missing",
+            "stale",
+            "incompatible_clock_domain",
+            "unsynchronized"
+          ]
+        },
+        "leap_second_table_version": {
+          "type": "string"
+        }
+      }
+    },
+    "referenceFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "axis_convention"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "axis_convention": {
+          "type": "string",
+          "description": "For example ROS REP-103 optical or ENU."
+        },
+        "crs": {
+          "type": "string"
+        },
+        "vertical_datum": {
+          "type": "string"
+        },
+        "coordinate_epoch": {
+          "type": "string"
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_id",
+        "sensor_id",
+        "modality",
+        "frame_id",
+        "capture",
+        "encoding",
+        "shape",
+        "units",
+        "payload",
+        "validity_asset",
+        "calibration_id",
+        "health"
+      ],
+      "properties": {
+        "observation_id": {
+          "type": "string"
+        },
+        "sensor_id": {
+          "type": "string"
+        },
+        "modality": {
+          "description": "A registered OpenPRISM modality token or an explicitly namespaced extension beginning with x_. Encoding and bit depth remain separately declared, but thermal_lwir_8 and thermal_lwir_16 are retained for compatibility with the reference runtime.",
+          "oneOf": [
+            {
+              "enum": [
+                "visible_rgb",
+                "thermal_lwir",
+                "thermal_lwir_8",
+                "thermal_lwir_16",
+                "thermal_mwir",
+                "depth",
+                "lidar",
+                "radar",
+                "event",
+                "imu",
+                "gnss",
+                "sar",
+                "hyperspectral",
+                "other"
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^x_[a-z][a-z0-9]*(?:_[a-z0-9]+)*$"
+            }
+          ]
+        },
+        "frame_id": {
+          "type": "string"
+        },
+        "capture": {
+          "$ref": "#/$defs/capture"
+        },
+        "encoding": {
+          "type": "string"
+        },
+        "shape": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "units": {
+          "type": "string"
+        },
+        "spectral_band": {
+          "type": "string"
+        },
+        "exposure_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rolling_shutter_line_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "payload": {
+          "$ref": "#/$defs/asset"
+        },
+        "validity_asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "uncertainty_asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "calibration_id": {
+          "type": "string"
+        },
+        "health": {
+          "enum": ["nominal", "degraded", "stale", "lost", "test"]
+        }
+      }
+    },
+    "transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transform_id",
+        "parent_frame",
+        "child_frame",
+        "valid_from_tai_ns",
+        "source",
+        "matrix",
+        "covariance"
+      ],
+      "properties": {
+        "transform_id": {
+          "type": "string"
+        },
+        "parent_frame": {
+          "type": "string"
+        },
+        "child_frame": {
+          "type": "string"
+        },
+        "valid_from_tai_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "valid_to_tai_ns": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "source": {
+          "enum": ["factory", "field", "online_residual", "estimated"]
+        },
+        "matrix": {
+          "description": "A row-major homogeneous 3x3 image transform or 4x4 spatial transform.",
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 9,
+              "maxItems": 9,
+              "items": {
+                "type": "number"
+              }
+            },
+            {
+              "type": "array",
+              "minItems": 16,
+              "maxItems": 16,
+              "items": {
+                "type": "number"
+              }
+            }
+          ]
+        },
+        "covariance": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "calibration_id": {
+          "type": "string"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_id", "kind", "source", "frame_bundle_id", "state"],
+      "properties": {
+        "evidence_id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": ["detection", "segmentation", "track", "terrain", "alert"]
+        },
+        "source": {
+          "enum": ["sensor", "model", "ground_truth", "operator"]
+        },
+        "frame_bundle_id": {
+          "type": "string"
+        },
+        "state": {
+          "enum": ["observed", "predicted", "coasting", "operator_confirmed"]
+        },
+        "class_distribution": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "geometry_asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "physical_uncertainty_asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "model_confidence_asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "contributing_observation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system_state",
+        "registration_state",
+        "time_state",
+        "time_basis",
+        "pixel_fusion_eligible",
+        "geolocation_state"
+      ],
+      "properties": {
+        "system_state": {
+          "enum": ["nominal", "degraded", "stale", "lost", "test_replay"]
+        },
+        "registration_state": {
+          "enum": ["registered", "uncertain", "unregistered", "not_applicable"]
+        },
+        "time_state": {
+          "enum": ["synchronized", "uncertain", "unsynchronized", "unknown"]
+        },
+        "time_basis": {
+          "enum": ["unknown", "measured", "declared"]
+        },
+        "pixel_fusion_eligible": {
+          "type": "boolean"
+        },
+        "measured_max_skew_ns": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "effective_max_skew_ns": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "physical_timing_uncertainty_ns": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "geolocation_state": {
+          "enum": ["valid", "uncertain", "invalid", "unavailable"]
+        },
+        "registration_uncertainty_px": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "latency_ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projection_id", "purpose", "asset", "contributor_ids", "processing_graph_id"],
+      "properties": {
+        "projection_id": {
+          "type": "string"
+        },
+        "purpose": {
+          "enum": ["machine", "operator", "archive", "export"]
+        },
+        "asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "channel_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contributor_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "contribution_weight_asset": {
+          "$ref": "#/$defs/asset"
+        },
+        "processing_graph_id": {
+          "type": "string"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activity_id", "software", "configuration_sha256", "source_ids"],
+      "properties": {
+        "activity_id": {
+          "type": "string"
+        },
+        "software": {
+          "type": "string"
+        },
+        "configuration_sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "model_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "calibration_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "prov_o_uri": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
