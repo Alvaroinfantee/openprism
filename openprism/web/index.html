@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#07100e">
+    <title>OpenPRISM Operator Console</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#sceneCanvas">Skip to the fused scene</a>
+
+    <main class="app-shell" aria-labelledby="productName">
+      <header class="command-bar">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+          <div>
+            <p class="eyebrow">Multimodal perception</p>
+            <h1 id="productName">OpenPRISM <span>Operator</span></h1>
+          </div>
+        </div>
+
+        <div class="source-controls" aria-label="Data source">
+          <label class="compact-field">
+            <span>Dataset</span>
+            <select id="datasetSelect" disabled aria-describedby="catalogState">
+              <option>Loading catalog…</option>
+            </select>
+          </label>
+          <label class="compact-field">
+            <span>Split</span>
+            <select id="splitSelect" disabled>
+              <option>—</option>
+            </select>
+          </label>
+        </div>
+
+        <nav class="frame-nav" aria-label="Frame navigation">
+          <button id="previousFrame" class="icon-button" type="button" disabled title="Previous frame (Left arrow)" aria-label="Previous frame">
+            <span aria-hidden="true">←</span>
+          </button>
+          <label class="index-field">
+            <span class="sr-only">Frame index</span>
+            <input id="frameIndex" type="number" inputmode="numeric" min="1" value="1" disabled>
+            <span id="frameTotal" aria-hidden="true">/ —</span>
+          </label>
+          <button id="nextFrame" class="icon-button" type="button" disabled title="Next frame (Right arrow)" aria-label="Next frame">
+            <span aria-hidden="true">→</span>
+          </button>
+        </nav>
+
+        <div class="catalog-state" id="catalogState" role="status" aria-live="polite">
+          <span class="pulse-dot" aria-hidden="true"></span>
+          <span id="catalogStateText">Connecting</span>
+        </div>
+      </header>
+
+      <section class="operator-workspace" id="operatorWorkspace" aria-label="Multisensor scene workspace">
+        <div class="preset-dock" role="toolbar" aria-label="Scene interpretation preset">
+          <p class="dock-label">View</p>
+          <button class="preset-button is-active" type="button" data-preset="navigate" aria-pressed="true" title="Navigate preset (1)">
+            <span class="preset-index" aria-hidden="true">01</span>
+            <span>Navigate</span>
+          </button>
+          <button class="preset-button" type="button" data-preset="search" aria-pressed="false" title="Search preset (2)">
+            <span class="preset-index" aria-hidden="true">02</span>
+            <span>Search</span>
+          </button>
+          <button class="preset-button" type="button" data-preset="terrain" aria-pressed="false" title="Terrain preset (3)">
+            <span class="preset-index" aria-hidden="true">03</span>
+            <span>Terrain</span>
+          </button>
+          <button class="preset-button" type="button" data-preset="integrity" aria-pressed="false" title="Integrity preset (4)">
+            <span class="preset-index" aria-hidden="true">04</span>
+            <span>Integrity</span>
+          </button>
+          <button class="preset-button preset-button--atlas" type="button" data-preset="atlas" aria-pressed="false" title="Atlas preset (5)">
+            <span class="preset-index" aria-hidden="true">05</span>
+            <span>Atlas</span>
+          </button>
+        </div>
+
+        <figure class="scene-shell" id="sceneShell" aria-busy="true">
+          <div class="scene-stage" id="sceneStage">
+            <canvas id="sceneCanvas" tabindex="0" role="img" aria-describedby="sceneCaption evidenceInstructions">
+              This operator view requires a browser with canvas support.
+            </canvas>
+
+            <div class="stage-readout stage-readout--top" aria-hidden="true">
+              <span id="sampleReadout">NO FRAME</span>
+              <span id="dimensionReadout">— × —</span>
+            </div>
+
+            <div class="stage-readout stage-readout--bottom" aria-hidden="true">
+              <span class="coordinate-readout" id="coordinateReadout">X — &nbsp; Y —</span>
+              <span id="presetReadout">FUSED NAVIGATION</span>
+            </div>
+
+            <div class="scene-state" id="loadingState" role="status" aria-live="polite">
+              <span class="loader" aria-hidden="true"></span>
+              <strong>Assembling sensor evidence</strong>
+              <span id="loadingDetail">Reading the catalog…</span>
+            </div>
+
+            <div class="scene-state scene-state--error" id="errorState" role="alert" hidden>
+              <span class="error-glyph" aria-hidden="true">!</span>
+              <strong>Scene unavailable</strong>
+              <span id="errorDetail">The frame could not be loaded.</span>
+              <button id="retryButton" type="button">Retry</button>
+            </div>
+
+            <div class="scene-state scene-state--atlas" id="atlasState" role="status" aria-live="polite" hidden>
+              <span class="atlas-glyph" aria-hidden="true">⌖</span>
+              <strong>Atlas unavailable</strong>
+              <span id="atlasStateDetail">No exported mission atlas is available.</span>
+              <button id="atlasRetryButton" type="button">Check again</button>
+            </div>
+          </div>
+
+          <figcaption id="sceneCaption">
+            <span id="sceneDescription">Waiting for multisensor imagery.</span>
+            <span class="caption-separator" aria-hidden="true"></span>
+            <span id="overlayDescription">No annotation overlay loaded.</span>
+          </figcaption>
+        </figure>
+
+        <aside class="evidence-panel" aria-label="Fusion controls and evidence status">
+          <section class="panel-section fusion-control">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Fusion control</p>
+                <h2>Thermal strength</h2>
+              </div>
+              <output id="thermalOutput" for="thermalGain">58%</output>
+            </div>
+            <input id="thermalGain" class="thermal-range" type="range" min="0" max="100" value="58" step="1" aria-label="Thermal strength">
+            <div class="range-legend" aria-hidden="true"><span>RGB</span><span>Balanced evidence</span><span>TIR</span></div>
+          </section>
+
+          <section class="panel-section ai-advisor" aria-labelledby="aiAdvisorTitle">
+            <div class="section-heading section-heading--compact">
+              <div>
+                <p class="eyebrow">Constrained fusion agent</p>
+                <h2 id="aiAdvisorTitle">AI scene brief</h2>
+              </div>
+              <span class="ai-mode-badge" id="aiModeBadge">AUTO</span>
+            </div>
+            <label class="switch-row ai-auto-row" for="autoFusionToggle">
+              <span>
+                <strong>Automatic controls</strong>
+                <small>Evidence model + hard safety gates</small>
+              </span>
+              <input id="autoFusionToggle" type="checkbox" role="switch" checked>
+              <span class="switch-track" aria-hidden="true"><span></span></span>
+            </label>
+            <p class="ai-summary" id="aiSummary">Waiting for synchronized evidence.</p>
+            <dl class="ai-metrics" id="aiMetrics">
+              <div><dt>View</dt><dd>—</dd></div>
+              <div><dt>TIR</dt><dd>—</dd></div>
+              <div><dt>Confidence</dt><dd>—</dd></div>
+            </dl>
+            <ul class="ai-reasons" id="aiReasons" aria-label="Fusion recommendation rationale"></ul>
+            <p class="tool-hint">The model recommends controls; synchronization, registration, validity, and uncertainty gates remain authoritative.</p>
+          </section>
+
+          <section class="panel-section switch-stack" aria-label="Scene tools">
+            <label class="switch-row" for="labelsToggle">
+              <span>
+                <strong id="labelsTitle">Labels</strong>
+                <small id="labelsDetail">Show declared annotations</small>
+              </span>
+              <input id="labelsToggle" type="checkbox" role="switch" checked>
+              <span class="switch-track" aria-hidden="true"><span></span></span>
+            </label>
+            <label class="switch-row" for="lensToggle">
+              <span>
+                <strong>Evidence lens</strong>
+                <small id="lensDetail">Inspect a registered source view</small>
+              </span>
+              <input id="lensToggle" type="checkbox" role="switch" checked>
+              <span class="switch-track" aria-hidden="true"><span></span></span>
+            </label>
+            <p id="evidenceInstructions" class="tool-hint">The lens preserves one scene window and reveals the complementary registered view at the same coordinates. Thermal imagery is normalized and color-mapped.</p>
+          </section>
+
+          <section class="panel-section atlas-layer-panel" id="atlasLayerPanel" aria-labelledby="atlasLayerTitle" hidden>
+            <div class="section-heading section-heading--compact">
+              <div>
+                <p class="eyebrow">Atlas evidence</p>
+                <h2 id="atlasLayerTitle">Map layer</h2>
+              </div>
+              <span class="atlas-grade">TACTICAL 2.5D</span>
+            </div>
+            <div class="atlas-layer-switch" role="group" aria-label="Atlas map layer">
+              <button class="is-active" type="button" data-atlas-layer="composite" aria-pressed="true">RGB + TIR</button>
+              <button type="button" data-atlas-layer="thermal" aria-pressed="false">Thermal</button>
+              <button type="button" data-atlas-layer="support" aria-pressed="false">Support</button>
+            </div>
+            <p class="tool-hint">North-up pose projection for rapid awareness. This product is not survey-grade; normalized thermal is not a temperature measurement.</p>
+          </section>
+
+          <section class="panel-section evidence-health" aria-labelledby="evidenceHealthTitle">
+            <div class="section-heading section-heading--compact">
+              <div>
+                <p class="eyebrow">Media availability</p>
+                <h2 id="evidenceHealthTitle">Available views</h2>
+              </div>
+              <span class="health-summary" id="healthSummary">Standby</span>
+            </div>
+
+            <div class="sensor-grid" id="sensorGrid" aria-label="Available media views">
+              <div class="sensor-chip is-offline"><span>RGB</span><small>waiting</small></div>
+              <div class="sensor-chip is-offline"><span>TIR</span><small>waiting</small></div>
+              <div class="sensor-chip is-offline"><span>FUS</span><small>waiting</small></div>
+            </div>
+
+            <div class="metric-row">
+              <div>
+                <span>Registration evidence</span>
+                <strong id="registrationValue">—</strong>
+              </div>
+              <div class="confidence-track" role="img" aria-label="Registration evidence not loaded" id="registrationMeter">
+                <span id="registrationBar"></span>
+              </div>
+            </div>
+
+            <div class="machine-row">
+              <span>Machine channels</span>
+              <strong id="machineChannels">—</strong>
+            </div>
+
+            <div class="playback-row">
+              <span class="replay-badge" id="sourceModeBadge">REPLAY</span>
+              <strong id="captureTimeStatus">Capture time not supplied</strong>
+            </div>
+          </section>
+
+          <section class="terrain-legend" id="terrainLegend" aria-labelledby="terrainLegendTitle" hidden>
+            <div class="section-heading section-heading--compact">
+              <div>
+                <p class="eyebrow">Scene composition</p>
+                <h2 id="terrainLegendTitle">Terrain classes</h2>
+              </div>
+              <span class="terrain-class-count" id="terrainClassCount">0 classes</span>
+            </div>
+            <ul class="terrain-class-list" id="terrainClassList"></ul>
+          </section>
+
+          <section class="provenance-card" id="provenanceCard" aria-labelledby="provenanceTitle">
+            <p class="eyebrow">Overlay provenance</p>
+            <h2 id="provenanceTitle">No annotations</h2>
+            <p id="provenanceDetail">The browser renders supplied evidence only. Dataset annotations are labeled GROUND TRUTH; no model inference is implied.</p>
+          </section>
+
+          <details class="shortcut-panel">
+            <summary>Keyboard controls <span aria-hidden="true">?</span></summary>
+            <dl>
+              <div><dt>← / →</dt><dd>Previous / next frame</dd></div>
+              <div><dt>1–5</dt><dd>Change view preset</dd></div>
+              <div><dt>L</dt><dd>Toggle evidence lens</dd></div>
+              <div><dt>G</dt><dd>Toggle labels</dd></div>
+              <div><dt>[ / ]</dt><dd>Adjust thermal strength</dd></div>
+            </dl>
+          </details>
+        </aside>
+      </section>
+
+      <div class="sr-only" id="sceneA11ySummary" aria-live="polite"></div>
+    </main>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
