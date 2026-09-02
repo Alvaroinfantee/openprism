@@ -917,7 +917,14 @@
     }
 
     const override = cleanText(recommendation.status) === "safety_override";
-    elements.aiModeBadge.textContent = override ? "SAFE" : state.autoFusion ? "AUTO" : "ADVICE";
+    const learnedActive = digest?.learned_fusion?.active === true;
+    elements.aiModeBadge.textContent = override
+      ? "SAFE"
+      : learnedActive && state.autoFusion
+        ? "EGT"
+        : state.autoFusion
+          ? "AUTO"
+          : "ADVICE";
     elements.aiModeBadge.classList.toggle("is-manual", !state.autoFusion && !override);
     elements.aiModeBadge.classList.toggle("is-override", override);
     elements.aiSummary.textContent = cleanText(
