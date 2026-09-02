@@ -1,7 +1,7 @@
 # JOSS readiness dossier
 
-Status on 2026-09-02: **publication package prepared; not yet eligible for JOSS
-submission**.
+Status on 2026-09-02: **public pre-JOSS release launched; not yet eligible for
+JOSS submission**.
 
 Current guidance: <https://joss.readthedocs.io/en/latest/submitting.html> and
 <https://joss.readthedocs.io/en/latest/paper.html>.
@@ -23,15 +23,18 @@ criteria on day one.
 - Versioned schemas and policy artifact with provenance and SHA-256 identity.
 - JOSS-format `paper/paper.md` and `paper/paper.bib`, including AI disclosure.
 - Honest limitations and dataset licensing boundaries.
+- Public, cloneable GitHub repository with Issues enabled.
 
-## Blocking items before public release
+## Next repository setup actions
 
-- Confirm the final author list before submission.
-- Confirm the project name and MIT license choice.
+- Confirm the final author list and complete human manuscript review before
+  submission.
 - Have every named author review the complete repository, policy claims, and
   paper; record approval.
-- Create the public repository and enable Issues and Discussions.
-- Tag the first release and archive it (for example with Zenodo) when appropriate.
+- Enable Discussions and private vulnerability reporting if those support
+  channels will be offered.
+- Archive the tagged release with Zenodo or another long-term repository when
+  appropriate.
 
 ## Evidence to accumulate before JOSS submission
 
