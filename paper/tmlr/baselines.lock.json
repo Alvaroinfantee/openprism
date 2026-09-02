@@ -1,0 +1,78 @@
+{
+  "schema_version": "openprism.external-baselines-lock/1.0",
+  "audited_utc": "2026-09-02T21:35:00+02:00",
+  "policy": {
+    "vendor_external_code": false,
+    "final_selection_frozen": false,
+    "final_test_may_run": false,
+    "notes": [
+      "A frozen revision is not evidence that a baseline executed successfully.",
+      "Repositories without an explicit software license must not be copied into or redistributed with OpenPRISM.",
+      "Execution adapters must record their own environment, weights checksum, command, output checksum, and failure status before the final-test lock is released."
+    ]
+  },
+  "candidates": [
+    {
+      "id": "seafusion",
+      "role": "semantic/task-aware fusion",
+      "paper": "Image Fusion in the Loop of High-Level Vision Tasks: A Semantic-Aware Real-Time Infrared and Visible Image Fusion Network",
+      "repository": "https://github.com/Linfeng-Tang/SeAFusion",
+      "revision": "f217e1cd4b1cda8ca505d70cfb98481fac552408",
+      "repository_license": "MIT",
+      "weights_status": "fusionmodel_final.pth; sha256=8d65a7f9a50f36349803368cf9920f40420776995e7e8cc8a56d8d30e499431d",
+      "execution_status": "development 8-image adapter run complete; full validation not run",
+      "development_artifacts": {
+        "adapter_manifest_sha256": "607b391c099581b80bba12e37d985be56f809e090caecc353345c9127fdcf01f",
+        "detection_report_sha256": "088aa375b3906c116d0e1283f20b6426369300ad0709e17b25dd3d35d31498e2"
+      }
+    },
+    {
+      "id": "cddfuse",
+      "role": "reconstruction/decomposition fusion",
+      "paper": "CDDFuse: Correlation-Driven Dual-Branch Feature Decomposition for Multi-Modality Image Fusion",
+      "repository": "https://github.com/Zhaozixiang1228/MMIF-CDDFuse",
+      "revision": "73681d28f6100461f1b214ecf77a93b495be227b",
+      "repository_license": "none found at audited revision",
+      "weights_status": "CDDFuse_IVF.pth; sha256=bde39a766e6e7f9f3a25bb62f1682ebf5b090258bab47aa374660d4ada2d912c",
+      "execution_status": "development 8-image adapter run complete; full validation not run",
+      "development_artifacts": {
+        "adapter_manifest_sha256": "4b835c8f70c1fc84af6f677b9d969c688c139ed5a967edcc747a374c03baebd5",
+        "detection_report_sha256": "088aa375b3906c116d0e1283f20b6426369300ad0709e17b25dd3d35d31498e2",
+        "upstream_checkpoint_schema_note": "bundled checkpoint contains DIDF_Encoder/DIDF_Decoder keys while current test_IVF.py requests CDDF_Encoder/CDDF_Decoder"
+      },
+      "redistribution": "prohibited unless the copyright holder supplies a license"
+    },
+    {
+      "id": "paif",
+      "role": "perception-aware and attack-tolerant fusion",
+      "paper": "PAIF: Perception-Aware Infrared-Visible Image Fusion for Attack-Tolerant Semantic Segmentation",
+      "repository": "https://github.com/LiuZhu-CV/PAIF",
+      "revision": "0413cf3c431dd7e963851798b8f237a2a225c2d7",
+      "repository_license": "none found at audited revision",
+      "weights_status": "model_Proposed_wodenfense_fusion_best.pth; sha256=98fefca9ea5807ad870cd9ea219a1e193d24b57900fe0214c46d9cee5396b99a",
+      "execution_status": "development 8-image adapter run complete; full validation not run",
+      "development_artifacts": {
+        "adapter_manifest_sha256": "4a3fd6c2a1e3b7377121c7b9f0fd5d91ddfd5edbbd6b394dbd3383b01dc4473a",
+        "detection_report_sha256": "088aa375b3906c116d0e1283f20b6426369300ad0709e17b25dd3d35d31498e2",
+        "adapter_note": "fusion-only enhance_net.* weights; unused absent antialias helper and unrelated segmentation imports are fail-closed stubs"
+      },
+      "redistribution": "prohibited unless the copyright holder supplies a license"
+    },
+    {
+      "id": "c2rf",
+      "role": "joint registration and fusion",
+      "paper": "C2RF: Bridging Multi-Modal Image Registration and Fusion via Commonality Mining and Contrastive Learning",
+      "repository": "https://github.com/Linfeng-Tang/C2RF",
+      "revision": "5a419a2588de389b9ee51858d6c4250ea9478212",
+      "repository_license": "none found at audited revision",
+      "weights_status": "official RoadScene directory aggregate sha256=230ae7d7686acc04352c2923ef0b5d1926a2f00a1c823cf9ee30b48cd491c2bc; Decoder.pth=ce567f9fe5a86dc0724a82ff039e74602b4b42fef8915f367206d5f56e2cb5e8; Encoder.pth=a2f62e4d2ffda106ebbdb1cc1fb97dc851dcfeea231fbbb7f50a1f70fe3cc3fa; Fusion_layer.pth=be2d5d656d80972e92dcf207732c80982aab7488be0c2d77d5cf56916e4329bb; RegNet.pth=c1e1aa3f23ae13f919c5ea4d5932b9fbeefbf11697e4f9fc5c9351449349389d",
+      "execution_status": "development 8-image registration-plus-fusion adapter run complete; full validation not run",
+      "development_artifacts": {
+        "adapter_manifest_sha256": "52d921910dae202975c0078d1c537058ee728f09f6b84e5d612c07457f553b35",
+        "detection_report_sha256": "088aa375b3906c116d0e1283f20b6426369300ad0709e17b25dd3d35d31498e2",
+        "adapter_note": "exact inference class nodes avoid instantiating an unused VGG training default; audited revision requires CUDA and emits Kornia/PyTorch compatibility warnings"
+      },
+      "redistribution": "prohibited unless the copyright holder supplies a license"
+    }
+  ]
+}
