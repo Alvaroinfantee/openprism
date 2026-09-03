@@ -5,8 +5,8 @@ Versioning after its first public release.
 
 ## [Unreleased]
 
-- Prepare independent packaging, community files, CI, JOSS manuscript, and
-  contribution guidance.
+- Prepare independent packaging, community files, CI, and contribution
+  guidance.
 - Add exact publisher URLs, source revisions, archive digests, and a sanitized
   inventory for reproducible acquisition of the three third-party datasets.
 - Add PRISM-EGT evidence-gated task-conditioned learned fusion, safe checkpoint
@@ -20,8 +20,8 @@ Versioning after its first public release.
 - Add a revision-verifying, weights-only external runner for reviewed
   SeaFusion, CDDFuse, PAIF, and C2RF checkouts without vendoring third-party
   code.
-- Add an official-format anonymous TMLR manuscript draft whose result cells are
-  deliberately blocked until full baselines and final evaluation are complete.
+- Add segmentation probes, selective-risk statistics, latency measurement, and
+  revision-locked external-baseline validation utilities.
 
 ## [0.3.0] - 2026-09-02
 

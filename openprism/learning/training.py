@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import random
@@ -16,9 +17,28 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 
 from .checkpoint import save_checkpoint
-from .data import FusionPatchDataset, protocol_manifest
+from .data import CORRUPTION_MODES, FusionPatchDataset, protocol_manifest
 from .model import EGTCF, EGTCFConfig
-from .objective import EGTCFLoss
+from .objective import EGTCFLoss, EGTCFLossConfig
+
+
+EXPERIMENT_VARIANTS = (
+    "full",
+    "no_task_conditioning",
+    "no_learned_abstention",
+    "no_calibration_loss",
+    "no_hidden_corruption",
+    "soft_evidence_envelope",
+)
+
+
+def _source_hashes() -> dict[str, str]:
+    directory = Path(__file__).parent
+    names = ("training.py", "data.py", "model.py", "objective.py", "checkpoint.py")
+    return {
+        name: hashlib.sha256((directory / name).read_bytes()).hexdigest()
+        for name in names
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +55,8 @@ class TrainingConfig:
     max_train_samples: int | None = None
     max_validation_samples: int | None = None
     base_channels: int = 24
+    pose_features: int = 0
+    variant: str = "full"
     device: str = "auto"
 
 
@@ -70,7 +92,11 @@ def run_epoch(
     objective: EGTCFLoss,
     device: torch.device,
     optimizer: torch.optim.Optimizer | None = None,
+    *,
+    task_mode: str = "provided",
 ) -> dict[str, float]:
+    if task_mode not in {"provided", "automatic"}:
+        raise ValueError("task_mode must be provided or automatic")
     training = optimizer is not None
     model.train(training)
     totals: dict[str, float] = {}
@@ -84,7 +110,7 @@ def run_epoch(
                 batch["rgb"],
                 batch["thermal"],
                 batch["evidence"],
-                task_ids=batch["task_id"],
+                task_ids=(batch["task_id"] if task_mode == "provided" else None),
             )
             loss, components = objective(
                 output,
@@ -133,23 +159,33 @@ def _loader(
         num_workers=config.workers,
         pin_memory=torch.cuda.is_available(),
         generator=generator,
-        persistent_workers=config.workers > 0,
+        # Workers are recreated each epoch so the epoch-specific deterministic
+        # crop/corruption state is propagated on spawn-based platforms too.
+        persistent_workers=False,
     )
 
 
 def train(config: TrainingConfig) -> dict[str, object]:
     if config.epochs < 1:
         raise ValueError("epochs must be positive")
+    if config.variant not in EXPERIMENT_VARIANTS:
+        raise ValueError(f"unknown experiment variant: {config.variant}")
     seed_everything(config.seed)
     device = _device(config.device)
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
+    corruption_modes = (
+        ("declared_shift", "dropout")
+        if config.variant == "no_hidden_corruption"
+        else CORRUPTION_MODES
+    )
     training_data = FusionPatchDataset(
         config.data_root,
         "train",
         patch_size=config.patch_size,
         seed=config.seed,
         max_samples=config.max_train_samples,
+        corruption_modes=corruption_modes,
     )
     validation_data = FusionPatchDataset(
         config.data_root,
@@ -164,8 +200,25 @@ def train(config: TrainingConfig) -> dict[str, object]:
     training_loader = _loader(training_data, config, shuffle=True)
     validation_loader = _loader(validation_data, config, shuffle=False)
 
-    model = EGTCF(EGTCFConfig(base_channels=config.base_channels)).to(device)
-    objective = EGTCFLoss()
+    model = EGTCF(
+        EGTCFConfig(
+            base_channels=config.base_channels,
+            pose_features=config.pose_features,
+            use_task_conditioning=config.variant != "no_task_conditioning",
+            use_learned_abstention=config.variant != "no_learned_abstention",
+            hard_evidence_envelope=config.variant != "soft_evidence_envelope",
+        )
+    ).to(device)
+    objective = EGTCFLoss(
+        EGTCFLossConfig(
+            abstention_weight=(
+                0.0 if config.variant == "no_learned_abstention" else 0.8
+            ),
+            calibration_weight=(
+                0.0 if config.variant == "no_calibration_loss" else 0.5
+            ),
+        )
+    )
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
     )
@@ -180,6 +233,7 @@ def train(config: TrainingConfig) -> dict[str, object]:
     run_kind = "development_smoke_test" if limited else "full_protocol_training"
     started = datetime.now(timezone.utc).isoformat()
     for epoch in range(1, config.epochs + 1):
+        training_data.set_epoch(epoch - 1)
         train_metrics = run_epoch(
             model, training_loader, objective, device, optimizer=optimizer
         )
@@ -200,9 +254,9 @@ def train(config: TrainingConfig) -> dict[str, object]:
             metadata = save_checkpoint(
                 checkpoint_path,
                 model,
-                model_id=f"prism-egt-{run_kind}",
+                model_id=f"prism-egt-{config.variant}-{run_kind}",
                 training_provenance=(
-                    f"{run_kind}; seed={config.seed}; "
+                    f"{run_kind}; variant={config.variant}; seed={config.seed}; "
                     f"train_examples={len(training_data)}; validation_examples={len(validation_data)}"
                 ),
                 validation_scope=(
@@ -220,6 +274,7 @@ def train(config: TrainingConfig) -> dict[str, object]:
         "started_utc": started,
         "finished_utc": datetime.now(timezone.utc).isoformat(),
         "run_kind": run_kind,
+        "experiment_variant": config.variant,
         "paper_result": False,
         "paper_result_reason": (
             "development subset used" if limited else "test partition not evaluated"
@@ -233,6 +288,9 @@ def train(config: TrainingConfig) -> dict[str, object]:
             "output_dir": str(config.output_dir.resolve()),
         },
         "model_configuration": model.config.as_dict(),
+        "objective_configuration": asdict(objective.config),
+        "training_corruption_modes": list(corruption_modes),
+        "source_sha256": _source_hashes(),
         "protocol": protocol_manifest(config.data_root),
         "history": history,
         "best_validation_loss": best_loss,
@@ -258,6 +316,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-train-samples", type=int)
     parser.add_argument("--max-validation-samples", type=int)
     parser.add_argument("--base-channels", type=int, default=24)
+    parser.add_argument("--pose-features", type=int, default=0)
+    parser.add_argument("--variant", choices=EXPERIMENT_VARIANTS, default="full")
     parser.add_argument("--device", default="auto")
     return parser
 
@@ -278,6 +338,8 @@ def main(argv: Iterable[str] | None = None) -> None:
             max_train_samples=args.max_train_samples,
             max_validation_samples=args.max_validation_samples,
             base_channels=args.base_channels,
+            pose_features=args.pose_features,
+            variant=args.variant,
             device=args.device,
         )
     )

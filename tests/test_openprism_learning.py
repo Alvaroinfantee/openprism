@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -18,7 +19,12 @@ from openprism.contracts import (
     Timestamp,
 )
 if torch is not None:
-    from openprism.learning.data import _caltech_partition, _llvip_test_partition
+    from openprism.learning.data import (
+        _caltech_partition,
+        _llvip_test_partition,
+        _msrs_train_partition,
+        msrs_scene_group,
+    )
 
 
 @unittest.skipIf(torch is None, "PyTorch learning extra is not installed")
@@ -58,6 +64,69 @@ class LearnedFusionTests(unittest.TestCase):
         self.assertTrue(bool(torch.all(result.abstention[region] == 1.0)))
         self.assertTrue(bool(torch.all(result.thermal_contribution[region] == 0.0)))
         self.assertTrue(bool(torch.all(result.predictive_uncertainty[region] == 1.0)))
+
+    def test_preregistered_model_ablations_are_explicit(self) -> None:
+        from openprism.learning import EGTCF, EGTCFConfig
+
+        rgb = torch.rand(2, 3, 32, 32)
+        thermal = torch.rand(2, 1, 32, 32)
+        evidence = torch.ones(2, 3, 32, 32)
+        evidence[0] = 0.0
+
+        no_task = EGTCF(
+            EGTCFConfig(
+                base_channels=8,
+                dropout=0.0,
+                pose_features=0,
+                use_task_conditioning=False,
+            )
+        ).eval()
+        repeated_rgb = rgb[:1].repeat(2, 1, 1, 1)
+        repeated_thermal = thermal[:1].repeat(2, 1, 1, 1)
+        repeated_evidence = torch.ones(2, 3, 32, 32)
+        no_task_output = no_task(
+            repeated_rgb,
+            repeated_thermal,
+            repeated_evidence,
+            task_ids=torch.tensor([0, 2]),
+        )
+        self.assertTrue(
+            torch.allclose(
+                no_task_output.fused_luminance[0],
+                no_task_output.fused_luminance[1],
+            )
+        )
+
+        no_abstention = EGTCF(
+            EGTCFConfig(
+                base_channels=8,
+                dropout=0.0,
+                pose_features=0,
+                use_learned_abstention=False,
+            )
+        ).eval()
+        supported = no_abstention(
+            rgb[1:], thermal[1:], evidence[1:], task_ids=torch.tensor([1])
+        )
+        self.assertTrue(bool(torch.all(supported.abstention == 0.0)))
+
+        soft = EGTCF(
+            EGTCFConfig(
+                base_channels=8,
+                dropout=0.0,
+                pose_features=0,
+                hard_evidence_envelope=False,
+            )
+        ).eval()
+        soft_output = soft(rgb[:1], thermal[:1], evidence[:1])
+        self.assertGreater(
+            float(soft_output.thermal_contribution.detach().max()), 0.0
+        )
+        self.assertFalse(
+            soft.invariant_report(soft_output)[
+                "thermal_contribution_bounded_by_evidence"
+            ]
+        )
 
     def test_loss_is_finite_and_backpropagates(self) -> None:
         from openprism.learning import EGTCFLoss
@@ -203,6 +272,116 @@ class LearnedFusionTests(unittest.TestCase):
         self.assertEqual(perfect["uncertainty_auroc"], 1.0)
         self.assertEqual(reversed_scores["uncertainty_auroc"], 0.0)
         self.assertLess(perfect["brier"], reversed_scores["brier"])
+        self.assertAlmostEqual(
+            perfect["generalized_risk_coverage_area"], 0.125
+        )
+        self.assertAlmostEqual(
+            reversed_scores["generalized_risk_coverage_area"], 0.375
+        )
+        self.assertAlmostEqual(
+            perfect["oracle_generalized_risk_coverage_area"], 0.125
+        )
+        self.assertAlmostEqual(
+            perfect["random_order_expected_generalized_risk_coverage_area"],
+            0.25,
+        )
+
+    def test_selective_diagnostic_curves_are_complete_and_plot_ready(self) -> None:
+        from openprism.learning.evaluation import selective_diagnostic_curves
+
+        score = torch.tensor([0.0, 0.1, 0.4, 0.8, 1.0])
+        risk = torch.tensor([0.0, 0.0, 1.0, 1.0, 1.0])
+        report = selective_diagnostic_curves(
+            score, risk, bins=5, coverage_points=5
+        )
+
+        self.assertEqual(report["sampled_pixels"], 5)
+        self.assertEqual(
+            sum(item["count"] for item in report["reliability_bins"]), 5
+        )
+        curve = report["risk_coverage_curve"]
+        self.assertEqual(len(curve), 5)
+        self.assertEqual(curve[-1]["realized_coverage"], 1.0)
+        self.assertAlmostEqual(curve[-1]["conditional_risk"], 0.6)
+        self.assertLessEqual(
+            curve[0]["oracle_conditional_risk"], curve[0]["conditional_risk"]
+        )
+
+    def test_selective_aurc_never_splits_equal_score_blocks(self) -> None:
+        from openprism.learning.evaluation import (
+            selective_diagnostic_curves,
+            selective_metrics,
+        )
+
+        score = torch.tensor([0.0, 0.0, 1.0, 1.0])
+        risk = torch.tensor([0.0, 1.0, 0.0, 1.0])
+        metrics = selective_metrics(score, risk)
+        diagnostics = selective_diagnostic_curves(
+            score, risk, bins=2, coverage_points=4
+        )
+
+        # Both two-pixel tie blocks enter at once: 0.5*0.5 + 0.5*0.5.
+        self.assertAlmostEqual(metrics["risk_coverage_area"], 0.5)
+        # AUGRC trapezoids complete tied blocks: (0,0), (0.5,0.25), (1,0.5).
+        self.assertAlmostEqual(metrics["generalized_risk_coverage_area"], 0.25)
+        self.assertAlmostEqual(
+            metrics["realized_coverage_at_80_percent_requested_coverage"], 1.0
+        )
+        self.assertAlmostEqual(
+            metrics["selective_risk_at_80_percent_requested_coverage"], 0.5
+        )
+        realized = [
+            item["realized_coverage"]
+            for item in diagnostics["risk_coverage_curve"]
+        ]
+        self.assertEqual(realized, [0.5, 0.5, 1.0, 1.0])
+        self.assertIn("every equal-score pixel", diagnostics["risk_coverage_tie_policy"])
+
+    def test_model_evaluation_emits_pre_specified_score_comparators(self) -> None:
+        from torch.utils.data import DataLoader
+
+        from openprism.learning import EGTCFLoss
+        from openprism.learning.evaluation import evaluate_model_pass
+
+        examples = []
+        for index in range(2):
+            examples.append(
+                {
+                    "rgb": torch.rand(3, 32, 32),
+                    "thermal": torch.rand(1, 32, 32),
+                    "evidence": torch.ones(3, 32, 32),
+                    "task_id": torch.tensor(index, dtype=torch.long),
+                    "corruption_target": torch.zeros(1, 32, 32),
+                    "sample_id": f"sample-{index}",
+                    "dataset": "synthetic",
+                    "scene_group": f"group-{index}",
+                }
+            )
+
+        report = evaluate_model_pass(
+            self.model,
+            DataLoader(examples, batch_size=2, shuffle=False),
+            EGTCFLoss(),
+            torch.device("cpu"),
+            bootstrap_replicates=16,
+            spatial_stride=8,
+        )
+
+        self.assertEqual(report["runtime_and_failures"]["successful_examples"], 2)
+        self.assertEqual(
+            set(report["failure_score_comparators"]),
+            {
+                "evidence_insufficiency",
+                "visible_thermal_disagreement",
+                "learned_abstention",
+            },
+        )
+        self.assertEqual(
+            report["failure_score_metrics_pixel_weighted"]["samples"], 32.0
+        )
+        self.assertEqual(
+            report["runtime_and_failures"]["latency"]["recorded_batches"], 1
+        )
 
     def test_baselines_are_bounded_and_preserve_invalid_visible_pixels(self) -> None:
         from openprism.learning import BASELINE_NAMES, fuse_baseline
@@ -244,6 +423,49 @@ class LearnedFusionTests(unittest.TestCase):
         self.assertLess(perfect["log_average_miss_rate"], 1e-8)
         self.assertLess(false_first["ap50"], perfect["ap50"])
 
+    def test_detection_automatic_views_use_and_cache_automatic_task(self) -> None:
+        from openprism.learning.detection_evaluation import _view_tensor
+
+        class RecordingEngine:
+            def __init__(self) -> None:
+                self.tasks: list[str] = []
+
+            def fuse(self, frame, *, task: str):
+                self.tasks.append(task)
+                luminance = np.full((4, 5), 0.4, dtype=np.float32)
+                return SimpleNamespace(
+                    operator_rgb=np.full((4, 5, 3), 102, dtype=np.uint8),
+                    machine_tensor=np.stack((luminance,)),
+                    channel_names=("learned_fused_luminance",),
+                )
+
+        frame = SimpleNamespace(
+            observations={
+                "visible": SimpleNamespace(data=np.zeros((4, 5, 3), dtype=np.uint8)),
+                "thermal": SimpleNamespace(
+                    data=np.arange(20, dtype=np.uint8).reshape(4, 5)
+                ),
+            },
+            provenance={"sample_id": "sample"},
+        )
+        engine = RecordingEngine()
+        cache: dict[str, object] = {}
+        for view in (
+            "prism_egt_operator",
+            "prism_egt_luminance",
+            "prism_egt_operator_automatic",
+            "prism_egt_luminance_automatic",
+        ):
+            result = _view_tensor(
+                view,
+                frame,
+                learned_engine=engine,
+                external_fused={},
+                cache=cache,
+            )
+            self.assertEqual(tuple(result.shape), (3, 4, 5))
+        self.assertEqual(engine.tasks, ["search", "automatic"])
+
     def test_detection_probe_keeps_final_test_locked(self) -> None:
         from openprism.learning.detection_evaluation import evaluate_llvip_detection
 
@@ -274,6 +496,15 @@ class ProtocolPartitionTests(unittest.TestCase):
     def test_caltech_scene_group_has_one_stable_partition(self) -> None:
         name = "2022-05-15_ColoradoRiver_flight1"
         self.assertEqual(_caltech_partition(name), _caltech_partition(name))
+
+    def test_msrs_contiguous_blocks_never_cross_partitions(self) -> None:
+        self.assertEqual(msrs_scene_group("00301D"), msrs_scene_group("00399D"))
+        self.assertEqual(
+            _msrs_train_partition("00301D"), _msrs_train_partition("00399D")
+        )
+        self.assertNotEqual(msrs_scene_group("00399D"), msrs_scene_group("00400D"))
+        with self.assertRaisesRegex(ValueError, "unsupported MSRS"):
+            msrs_scene_group("frame")
 
 
 if __name__ == "__main__":

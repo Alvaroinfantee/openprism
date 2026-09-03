@@ -1,4 +1,4 @@
-"""Training objectives and submission-auditable metric components."""
+"""Training objectives and reproducibility-auditable metric components."""
 
 from __future__ import annotations
 

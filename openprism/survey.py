@@ -27,7 +27,7 @@ import subprocess
 import tempfile
 from typing import Any, Iterable, Mapping, Sequence
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from .pixhawk import CameraPoseRecord, GEODETIC_POSITION_FRAME, export_odm_geo_txt
 
@@ -355,7 +355,14 @@ def _rgb_image_metadata(path: Path) -> dict[str, Any]:
             width, height = image.size
             mode = image.mode
             image_format = image.format
-    except (OSError, SyntaxError, UnidentifiedImageError) as error:
+    # Pillow may be wrapped by optional format plug-ins (for example by an
+    # imported detector package).  Those wrappers can translate an ordinary
+    # decode failure into ImportError/ModuleNotFoundError while attempting a
+    # lazy plug-in load.  At this input-validation boundary every non-fatal
+    # decoder exception has the same meaning: the supplied capture was not
+    # successfully decoded as an image.  BaseException subclasses such as
+    # KeyboardInterrupt and SystemExit still propagate.
+    except Exception as error:
         raise ImagePoseMatchError(f"RGB capture is not a decodable image: {path}") from error
     if width <= 0 or height <= 0:
         raise ImagePoseMatchError(f"RGB capture has invalid dimensions: {path}")

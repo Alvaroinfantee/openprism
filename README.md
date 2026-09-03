@@ -3,9 +3,6 @@
 [![CI](https://github.com/Alvaroinfantee/openprism/actions/workflows/ci.yml/badge.svg)](https://github.com/Alvaroinfantee/openprism/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> Pre-JOSS research release. Complete author metadata and add an archival DOI
-> before a JOSS submission. See [JOSS readiness](JOSS_READINESS.md).
-
 **Provenance-Rich Integrated Sensor Model** — one synchronized scene state,
 two faithful projections.
 
@@ -88,10 +85,10 @@ openprism --data-root /path/to/data --learned-checkpoint runs/prism-egt/best.pt
 ```
 
 No trained checkpoint is distributed and no benchmark-superiority claim is
-made yet. Development-subset artifacts are marked as non-paper results, and
-the final-test CLI remains locked until model selection is frozen. See
+made. Development outputs are kept separate from final evaluation, and the
+final-test CLI remains locked until model selection is frozen. See
 [PRISM-EGT learned fusion](openprism/docs/LEARNED_FUSION.md) and the
-[experiment protocol](paper/tmlr/EXPERIMENT_PROTOCOL.md).
+[validation plan](openprism/docs/VALIDATION_PLAN.md).
 
 ## Build the PRISM Atlas demonstration
 
@@ -275,7 +272,7 @@ openprism/
 
 - This is a tested **reference baseline**, not a certified operational system.
 - PRISM-EGT has passed unit and development smoke tests only; the repository
-  does not yet contain paper-quality downstream results or a validated model.
+  does not distribute a fully validated production checkpoint.
 - The three archives contain paired RGB/thermal imagery; they do not validate a
   live hardware clock, camera calibration, rolling-shutter compensation, lidar,
   radar, GNSS, or IMU integration.

@@ -26,10 +26,6 @@ jobs:
         run: python -m compileall -q openprism tooling tests
       - name: Test
         run: python -m unittest discover -s tests -p "test*.py" -v
-      - name: Validate publication artifacts
-        run: |
-          python tooling/validate_publication.py
-          python tooling/validate_tmlr_draft.py
       - name: Build distributions
         if: matrix.python-version == '3.12'
         run: python -m build

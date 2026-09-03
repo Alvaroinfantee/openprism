@@ -35,6 +35,9 @@ class EGTCFConfig:
     pose_features: int = 8
     dropout: float = 0.05
     tasks: tuple[str, ...] = TASK_NAMES
+    use_task_conditioning: bool = True
+    use_learned_abstention: bool = True
+    hard_evidence_envelope: bool = True
 
     def __post_init__(self) -> None:
         if self.base_channels < 8:
@@ -47,6 +50,13 @@ class EGTCFConfig:
             raise ValueError("dropout must be in [0, 1)")
         if not self.tasks or len(set(self.tasks)) != len(self.tasks):
             raise ValueError("tasks must be non-empty and unique")
+        for name in (
+            "use_task_conditioning",
+            "use_learned_abstention",
+            "hard_evidence_envelope",
+        ):
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"{name} must be boolean")
 
     def as_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -196,7 +206,14 @@ class EGTCF(nn.Module):
         )
         task_logits = self.task_head(pooled)
         task_probabilities = torch.softmax(task_logits, dim=1)
-        if task_ids is None:
+        if not self.config.use_task_conditioning:
+            task_vector = torch.zeros(
+                fused_features.shape[0],
+                self.config.task_embedding_dim,
+                device=fused_features.device,
+                dtype=fused_features.dtype,
+            )
+        elif task_ids is None:
             task_vector = task_probabilities @ self.task_embedding.weight
         else:
             task_ids = task_ids.to(device=fused_features.device, dtype=torch.long)
@@ -257,23 +274,30 @@ class EGTCF(nn.Module):
 
         raw = self.selector(torch.cat((paired, evidence), dim=1))
         modality_logits = raw[:, 0:2]
-        learned_abstention = torch.sigmoid(raw[:, 2:3])
+        learned_abstention = (
+            torch.sigmoid(raw[:, 2:3])
+            if self.config.use_learned_abstention
+            else torch.zeros_like(raw[:, 2:3])
+        )
         learned_uncertainty = torch.sigmoid(raw[:, 3:4])
         thermal_gate = torch.sigmoid(raw[:, 4:5])
 
         evidence_support = torch.prod(evidence, dim=1, keepdim=True)
         # The explicit lower bound means missing evidence always becomes an
-        # abstention, regardless of network parameters.
-        abstention = torch.maximum(learned_abstention, 1.0 - evidence_support)
+        # abstention, regardless of network parameters.  The soft-envelope
+        # branch exists only for the preregistered scientific ablation and is
+        # never the product/runtime default.
+        abstention = (
+            torch.maximum(learned_abstention, 1.0 - evidence_support)
+            if self.config.hard_evidence_envelope
+            else learned_abstention
+        )
         reliabilities = torch.softmax(modality_logits, dim=1)
         visible_reliability = reliabilities[:, 0:1]
         thermal_reliability = reliabilities[:, 1:2]
-        thermal_contribution = (
-            thermal_reliability
-            * thermal_gate
-            * evidence_support
-            * (1.0 - abstention)
-        )
+        thermal_contribution = thermal_reliability * thermal_gate * (1.0 - abstention)
+        if self.config.hard_evidence_envelope:
+            thermal_contribution = thermal_contribution * evidence_support
         visible_y = (
             0.299 * rgb[:, 0:1]
             + 0.587 * rgb[:, 1:2]
@@ -283,9 +307,13 @@ class EGTCF(nn.Module):
             (1.0 - thermal_contribution) * visible_y
             + thermal_contribution * thermal
         ).clamp(0.0, 1.0)
-        predictive_uncertainty = torch.maximum(
-            learned_uncertainty,
-            1.0 - evidence_support * (1.0 - abstention),
+        predictive_uncertainty = (
+            torch.maximum(
+                learned_uncertainty,
+                1.0 - evidence_support * (1.0 - abstention),
+            )
+            if self.config.hard_evidence_envelope
+            else learned_uncertainty
         )
         return EGTCFOutput(
             fused_luminance=fused_luminance,

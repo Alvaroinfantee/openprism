@@ -111,10 +111,10 @@ openprism-evaluate-egtcf \
 ```
 
 Proxy fusion losses are useful for optimization but are not scientific ground
-truth. A submission must report downstream person/vehicle detection, semantic
-segmentation, calibration/selective risk, registration and timing corruption
-stress tests, and latency. A real Pixhawk flight is required for any claim
-about aerial map accuracy or operational performance.
+truth. A complete evaluation should report downstream person/vehicle
+detection, semantic segmentation, calibration/selective risk, registration and
+timing corruption stress tests, and latency. A real Pixhawk flight is required
+for any claim about aerial map accuracy or operational performance.
 
 The frozen LLVIP person-detection probe applies one unchanged COCO detector to
 every view and records its weights checksum:

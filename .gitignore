@@ -13,15 +13,4 @@ data/
 output/
 runs/
 *.log
-paper/*.pdf
-paper/*.aux
-paper/*.bbl
-paper/*.blg
-paper/*.log
-paper/tmlr/*.aux
-paper/tmlr/*.bbl
-paper/tmlr/*.blg
-paper/tmlr/*.log
-paper/tmlr/*.out
-paper/tmlr/*.pdf
 tmp/

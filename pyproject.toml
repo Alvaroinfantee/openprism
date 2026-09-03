@@ -39,6 +39,8 @@ openprism = "openprism.__main__:main"
 openprism-train-egtcf = "openprism.learning.training:main"
 openprism-evaluate-egtcf = "openprism.learning.evaluation:main"
 openprism-evaluate-llvip-detection = "openprism.learning.detection_evaluation:main"
+openprism-msrs-segmentation-probe = "openprism.learning.segmentation_probe:main"
+openprism-caltech-segmentation-probe = "openprism.learning.caltech_segmentation_probe:main"
 
 [project.urls]
 Documentation = "https://github.com/Alvaroinfantee/openprism#readme"
@@ -50,7 +52,7 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["openprism*"]
-exclude = ["paper*", "tests*", "tooling*"]
+exclude = ["tests*", "tooling*"]
 
 [tool.setuptools.package-data]
 openprism = [

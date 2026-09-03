@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 import platform
 import random
+import time
 from typing import Iterable, Mapping, Sequence
 
 import numpy as np
@@ -38,6 +39,8 @@ BUILTIN_VIEWS = (
     "deterministic_openprism_operator",
     "prism_egt_operator",
     "prism_egt_luminance",
+    "prism_egt_operator_automatic",
+    "prism_egt_luminance_automatic",
 )
 
 
@@ -167,6 +170,157 @@ def detection_metrics(
     }
 
 
+def _percentile_interval(
+    values: Sequence[float], confidence: float = 0.95
+) -> dict[str, float] | None:
+    finite = np.asarray(values, dtype=np.float64)
+    finite = finite[np.isfinite(finite)]
+    if not finite.size:
+        return None
+    alpha = (1.0 - confidence) / 2.0
+    return {
+        "lower": float(np.quantile(finite, alpha)),
+        "upper": float(np.quantile(finite, 1.0 - alpha)),
+    }
+
+
+def grouped_detection_bootstrap(
+    ground_truth: Mapping[str, Sequence[Sequence[float]]],
+    predictions_by_view: Mapping[
+        str, Sequence[tuple[str, float, Sequence[float]]]
+    ],
+    scene_groups: Mapping[str, str],
+    *,
+    replicates: int = 2_000,
+    seed: int = 20260902,
+    confidence: float = 0.95,
+    comparison_baseline: str = "visible_rgb",
+) -> dict[str, object]:
+    """Cluster-bootstrap detection metrics and paired view deltas.
+
+    LLVIP sequence prefixes are the sampling units.  Repeated groups receive
+    fresh synthetic image identifiers so duplicate bootstrap draws retain the
+    correct number of objects and predictions.  Metric results are cached by
+    the sampled group multiset; this makes the small-group bootstrap exact for
+    a fixed random draw without repeatedly sorting identical predictions.
+    """
+
+    if replicates <= 0:
+        raise ValueError("replicates must be positive")
+    if not 0.0 < confidence < 1.0:
+        raise ValueError("confidence must be within (0, 1)")
+    if set(ground_truth) != set(scene_groups):
+        raise ValueError("every detection sample requires exactly one scene group")
+    if comparison_baseline not in predictions_by_view:
+        raise ValueError("comparison baseline is not present")
+    groups: dict[str, list[str]] = {}
+    for sample_id, group in scene_groups.items():
+        groups.setdefault(str(group), []).append(sample_id)
+    group_names = tuple(sorted(groups))
+    if not group_names:
+        raise ValueError("at least one scene group is required")
+    prediction_groups: dict[str, dict[str, list[tuple[str, float, Sequence[float]]]]] = {}
+    for view, predictions in predictions_by_view.items():
+        grouped: dict[str, list[tuple[str, float, Sequence[float]]]] = {
+            name: [] for name in group_names
+        }
+        for sample_id, score, box in predictions:
+            if sample_id not in scene_groups:
+                raise ValueError(f"prediction references unknown sample: {sample_id}")
+            grouped[scene_groups[sample_id]].append((sample_id, score, box))
+        prediction_groups[view] = grouped
+
+    def metrics_for(view: str, draw: tuple[str, ...]) -> dict[str, float | int]:
+        boot_truth: dict[str, Sequence[Sequence[float]]] = {}
+        boot_predictions: list[tuple[str, float, Sequence[float]]] = []
+        for draw_index, group in enumerate(draw):
+            prefix = f"bootstrap-{draw_index}-"
+            for sample_id in groups[group]:
+                boot_truth[prefix + sample_id] = ground_truth[sample_id]
+            boot_predictions.extend(
+                (prefix + sample_id, score, box)
+                for sample_id, score, box in prediction_groups[view][group]
+            )
+        return detection_metrics(boot_truth, boot_predictions)
+
+    rng = np.random.default_rng(seed)
+    draws = [
+        tuple(sorted(group_names[int(index)] for index in rng.integers(0, len(group_names), len(group_names))))
+        for _ in range(replicates)
+    ]
+    metric_names = ("ap_50_95", "ap50", "log_average_miss_rate")
+    cache: dict[tuple[str, tuple[str, ...]], dict[str, float | int]] = {}
+    samples: dict[str, dict[str, list[float]]] = {
+        view: {metric: [] for metric in metric_names} for view in predictions_by_view
+    }
+    for view in predictions_by_view:
+        for draw in draws:
+            key = (view, draw)
+            if key not in cache:
+                cache[key] = metrics_for(view, draw)
+            for metric in metric_names:
+                samples[view][metric].append(float(cache[key][metric]))
+    baseline_samples = samples[comparison_baseline]
+    return {
+        "method": "percentile_capture_sequence_bootstrap",
+        "confidence_level": confidence,
+        "requested_replicates": replicates,
+        "seed": seed,
+        "scene_group_count": len(group_names),
+        "scene_groups": list(group_names),
+        "unique_group_multisets_evaluated": len(set(draws)),
+        "intervals": {
+            view: {
+                metric: _percentile_interval(values, confidence)
+                for metric, values in metrics.items()
+            }
+            for view, metrics in samples.items()
+        },
+        "paired_deltas_vs_baseline": {
+            view: {
+                "baseline": comparison_baseline,
+                "direction": "candidate_minus_baseline",
+                "intervals": {
+                    metric: _percentile_interval(
+                        np.asarray(values) - np.asarray(baseline_samples[metric]),
+                        confidence,
+                    )
+                    for metric, values in metrics.items()
+                },
+                "bootstrap_probability_candidate_better": {
+                    metric: float(
+                        np.mean(
+                            (np.asarray(values) - np.asarray(baseline_samples[metric]))
+                            * (-1.0 if metric == "log_average_miss_rate" else 1.0)
+                            > 0.0
+                        )
+                    )
+                    for metric, values in metrics.items()
+                },
+            }
+            for view, metrics in samples.items()
+            if view != comparison_baseline
+        },
+    }
+
+
+def _latency_summary(values: Sequence[float]) -> dict[str, float | int | None]:
+    latency = np.asarray(values, dtype=np.float64)
+    if not latency.size:
+        return {"recorded": 0, "mean": None, "p50": None, "p95": None, "p99": None}
+    return {
+        "recorded": int(latency.size),
+        "mean": float(np.mean(latency)),
+        "standard_deviation": float(np.std(latency)),
+        "minimum": float(np.min(latency)),
+        "p50": float(np.quantile(latency, 0.50)),
+        "p90": float(np.quantile(latency, 0.90)),
+        "p95": float(np.quantile(latency, 0.95)),
+        "p99": float(np.quantile(latency, 0.99)),
+        "maximum": float(np.max(latency)),
+    }
+
+
 def _normalize_thermal(value: np.ndarray) -> np.ndarray:
     thermal = np.asarray(value, dtype=np.float32)
     if thermal.ndim == 3:
@@ -247,13 +401,20 @@ def _view_tensor(
         if "deterministic" not in cache:
             cache["deterministic"] = EvidenceFusionEngine().fuse(frame)
         return _tensor_rgb(cache["deterministic"].operator_rgb)
-    if name in {"prism_egt_operator", "prism_egt_luminance"}:
+    if name in {
+        "prism_egt_operator",
+        "prism_egt_luminance",
+        "prism_egt_operator_automatic",
+        "prism_egt_luminance_automatic",
+    }:
         if learned_engine is None:
             raise ValueError("PRISM-EGT views require a learned checkpoint")
-        if "prism_egt" not in cache:
-            cache["prism_egt"] = learned_engine.fuse(frame, task="search")
-        output = cache["prism_egt"]
-        if name == "prism_egt_operator":
+        task = "automatic" if name.endswith("_automatic") else "search"
+        cache_key = f"prism_egt:{task}"
+        if cache_key not in cache:
+            cache[cache_key] = learned_engine.fuse(frame, task=task)
+        output = cache[cache_key]
+        if name in {"prism_egt_operator", "prism_egt_operator_automatic"}:
             return _tensor_rgb(output.operator_rgb)
         luminance = output.machine_tensor[
             output.channel_names.index("learned_fused_luminance")
@@ -322,6 +483,8 @@ def evaluate_llvip_detection(
     unlock_final_test: bool = False,
     views: Sequence[str] = BUILTIN_VIEWS,
     external_fused: Mapping[str, Path] | None = None,
+    bootstrap_replicates: int = 2_000,
+    bootstrap_seed: int = 20260902,
 ) -> dict[str, object]:
     """Run one frozen detector over identical LLVIP samples and image views."""
 
@@ -341,6 +504,8 @@ def evaluate_llvip_detection(
         raise ValueError(f"unknown views: {sorted(unknown)}")
     if any(name.startswith("prism_egt_") for name in views) and checkpoint_path is None:
         raise ValueError("--checkpoint is required when evaluating PRISM-EGT")
+    if not views:
+        raise ValueError("at least one detection view is required")
 
     seed_everything(seed)
     device = torch.device(
@@ -362,6 +527,8 @@ def evaluate_llvip_detection(
     predictions: dict[str, list[tuple[str, float, Sequence[float]]]] = {
         name: [] for name in views
     }
+    view_latency_ms: dict[str, list[float]] = {name: [] for name in views}
+    view_failures: dict[str, list[dict[str, str]]] = {name: [] for name in views}
     sample_ids = []
     record_indices = {
         (split, catalog.record("llvip", split, index).sample_id): index
@@ -379,15 +546,33 @@ def evaluate_llvip_detection(
         ground_truth[record.sample_id] = _ground_truth_boxes(frame)
         view_cache: dict[str, object] = {}
         for name in views:
-            image = _view_tensor(
-                name,
-                frame,
-                learned_engine=learned_engine,
-                external_fused=external,
-                cache=view_cache,
-            ).to(device)
-            with torch.inference_mode():
-                prediction = detector([image])[0]
+            started_view = time.perf_counter()
+            try:
+                image = _view_tensor(
+                    name,
+                    frame,
+                    learned_engine=learned_engine,
+                    external_fused=external,
+                    cache=view_cache,
+                ).to(device)
+                with torch.inference_mode():
+                    prediction = detector([image])[0]
+                if device.type == "cuda":
+                    torch.cuda.synchronize(device)
+            except Exception as error:
+                view_failures[name].append(
+                    {
+                        "sample_id": record.sample_id,
+                        "reason": f"{type(error).__name__}: {error}",
+                    }
+                )
+                if device.type == "cuda":
+                    torch.cuda.empty_cache()
+                continue
+            finally:
+                view_latency_ms[name].append(
+                    (time.perf_counter() - started_view) * 1_000.0
+                )
             selected = (
                 (prediction["labels"] == 1)
                 & (prediction["scores"] >= score_floor)
@@ -403,6 +588,15 @@ def evaluate_llvip_detection(
         name: detection_metrics(ground_truth, values)
         for name, values in predictions.items()
     }
+    scene_groups = {sample_id: sample_id[:2] for sample_id in sample_ids}
+    intervals = grouped_detection_bootstrap(
+        ground_truth,
+        predictions,
+        scene_groups,
+        replicates=bootstrap_replicates,
+        seed=bootstrap_seed,
+        comparison_baseline=("visible_rgb" if "visible_rgb" in views else views[0]),
+    )
     report: dict[str, object] = {
         "schema_version": "openprism.llvip-detection-probe/1.0",
         "created_utc": datetime.now(timezone.utc).isoformat(),
@@ -418,16 +612,43 @@ def evaluate_llvip_detection(
         "score_floor": score_floor,
         "max_detections_per_image": max_detections,
         "detector": detector_metadata,
+        "prism_egt_checkpoint": (
+            {
+                "path": str(learned_engine.checkpoint.path),
+                "artifact_sha256": learned_engine.checkpoint.artifact_sha256,
+                "model_id": learned_engine.checkpoint.model_id,
+            }
+            if learned_engine is not None and learned_engine.checkpoint is not None
+            else None
+        ),
         "runtime": {
             "python": platform.python_version(),
             "torch": torch.__version__,
             "device": str(device),
         },
         "views": list(views),
+        "task_mapping": {
+            "prism_egt_operator": "search",
+            "prism_egt_luminance": "search",
+            "prism_egt_operator_automatic": "automatic",
+            "prism_egt_luminance_automatic": "automatic",
+        },
         "external_directories": {
             name: str(path.resolve()) for name, path in external.items()
         },
         "metrics": result,
+        "confidence_intervals_95": intervals,
+        "runtime_and_failures": {
+            name: {
+                "attempted": len(items),
+                "successful": len(items) - len(view_failures[name]),
+                "failed": len(view_failures[name]),
+                "failure_rate": len(view_failures[name]) / len(items),
+                "failures": view_failures[name],
+                "latency_ms": _latency_summary(view_latency_ms[name]),
+            }
+            for name in views
+        },
         "limitations": [
             "The frozen COCO detector is biased toward visible RGB imagery.",
             "This probe measures accessibility to one unchanged detector, not universal task utility.",
@@ -459,6 +680,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, default=20260902)
     parser.add_argument("--unlock-final-test", action="store_true")
+    parser.add_argument("--bootstrap-replicates", type=int, default=2_000)
+    parser.add_argument("--bootstrap-seed", type=int, default=20260902)
     parser.add_argument("--view", action="append", choices=BUILTIN_VIEWS)
     parser.add_argument(
         "--external-fused",
@@ -489,6 +712,8 @@ def main(argv: Iterable[str] | None = None) -> None:
         unlock_final_test=args.unlock_final_test,
         views=views,
         external_fused=external,
+        bootstrap_replicates=args.bootstrap_replicates,
+        bootstrap_seed=args.bootstrap_seed,
     )
     print(json.dumps({
         "scientific_status": report["scientific_status"],
