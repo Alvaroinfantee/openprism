@@ -240,12 +240,15 @@ adapters are added.
 ## Validate
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test*.py" -v
+.\.venv\Scripts\python.exe tooling\run_core_tests.py
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,learned]"
+.\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe tooling\validate_multispectral_datasets.py
 ```
 
-Unit tests run without third-party datasets. Dataset integration tests activate
-when all three archives are staged under `data/`.
+The core suite has no learned-stack dependency. The full suite installs the
+optional learned stack. Dataset integration tests activate when all three
+archives are staged under `data/`.
 
 ## Package map
 

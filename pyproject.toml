@@ -32,7 +32,7 @@ dependencies = [
 pixhawk = ["pymavlink==2.4.49"]
 learned = ["torch>=2.4,<3"]
 evaluation = ["torch>=2.4,<3", "torchvision>=0.19,<1"]
-dev = ["build>=1.2", "jsonschema>=4.23"]
+dev = ["build>=1.2", "jsonschema>=4.23", "pytest>=8.3,<10"]
 
 [project.scripts]
 openprism = "openprism.__main__:main"
