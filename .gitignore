@@ -14,3 +14,4 @@ output/
 runs/
 *.log
 tmp/
+native/target/

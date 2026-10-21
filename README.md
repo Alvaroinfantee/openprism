@@ -46,6 +46,25 @@ Pass `--data-root /path/to/data` when the archives are not under the current
 working directory. Install `.[pixhawk]` only when MAVLink log/live support is
 needed. Install `.[learned]` to train or run the optional PRISM-EGT model.
 
+### Optional Rust acceleration
+
+The deterministic fusion engine can use compiled Rust kernels for thermal
+local contrast and color rendering. From a checkout with a
+[Rust toolchain](https://rust-lang.org/tools/install/) installed:
+
+```powershell
+python -m pip install ./native
+$env:OPENPRISM_BACKEND = "rust"
+openprism
+```
+
+On Linux/macOS, run `OPENPRISM_BACKEND=rust openprism`. NumPy remains the
+default; use `OPENPRISM_BACKEND=numpy` to select the reference implementation.
+The existing synchronization, registration, validity and uncertainty gates
+remain in Python. Backend identity is recorded in output provenance.
+See [native acceleration](openprism/docs/NATIVE_ACCELERATION.md) for the
+numerical contract, reproducible speed/memory measurements and limitations.
+
 ## Automatic fusion and AI-ready evidence
 
 The **Constrained fusion agent** extracts ten bounded scene features from a
