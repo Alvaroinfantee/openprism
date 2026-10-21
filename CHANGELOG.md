@@ -5,6 +5,10 @@ Versioning after its first public release.
 
 ## [Unreleased]
 
+- Add an opt-in Rust backend for streaming palette rendering and a reflected
+  sliding-window thermal blur, preserving the NumPy reference default and
+  recording backend provenance. Include numerical parity and evidence-gate
+  regression tests, platform wheel CI, and a synthetic CPU/RSS benchmark.
 - Prepare independent packaging, community files, CI, and contribution
   guidance.
 - Add exact publisher URLs, source revisions, archive digests, and a sanitized

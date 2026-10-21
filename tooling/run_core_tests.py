@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 CORE_TEST_MODULES = (
     "tests.test_external_validation_matrix",
     "tests.test_openprism",
+    "tests.test_openprism_acceleration",
     "tests.test_openprism_atlas",
     "tests.test_openprism_atlas_demo",
     "tests.test_openprism_atlas_ui",

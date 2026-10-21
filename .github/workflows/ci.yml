@@ -42,3 +42,45 @@ jobs:
         run: python -m pip install -e ".[dev,learned]"
       - name: Test learned fusion
         run: python -m pytest -q
+
+  native-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.10"
+          - os: ubuntu-latest
+            python: "3.13"
+          - os: windows-latest
+            python: "3.12"
+          - os: macos-latest
+            python: "3.12"
+    runs-on: ${{ matrix.os }}
+    env:
+      OPENPRISM_BACKEND: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install Python dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path native/Cargo.toml --check
+      - name: Check Rust kernels
+        run: cargo test --manifest-path native/Cargo.toml --locked
+      - name: Lint Rust
+        run: cargo clippy --manifest-path native/Cargo.toml --locked --all-targets -- -D warnings
+      - name: Build native sdist and wheel
+        run: python -m build native --outdir dist/native
+      - name: Install built wheel
+        run: python -m pip install --no-index --no-deps --find-links dist/native openprism-native==0.1.0
+      - name: Test core and native parity
+        run: python tooling/run_core_tests.py
+      - name: Exercise benchmark and correctness assertions
+        run: python tooling/benchmark_native_kernels.py --sizes 96x128 --repeats 2 --warmup 1

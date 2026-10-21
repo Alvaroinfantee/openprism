@@ -13,6 +13,7 @@ from typing import Iterable
 
 import numpy as np
 
+from .acceleration import backend_info, native_kernels
 from .contracts import FusionOutput, PrismFrame, SensorObservation, SynchronizationStatus
 from .registration import (
     IdentityRegistrar,
@@ -80,6 +81,16 @@ def box_blur(value: np.ndarray, radius: int = 2) -> np.ndarray:
         return np.asarray(value, dtype=np.float32)
     array = np.asarray(value, dtype=np.float32)
     height, width = array.shape
+    native = native_kernels()
+    # Restrict sliding accumulation to the normalized signal domain. Preserve
+    # the reference's local NaN/Inf propagation and arbitrary-range behavior.
+    if (
+        native is not None and isinstance(radius, (int, np.integer))
+        and radius <= 64 and height and width
+        and np.all(np.isfinite(array)) and np.min(array) >= 0.0
+        and np.max(array) <= 1.0
+    ):
+        return native.box_blur(np.require(array, requirements=["C", "A"]), int(radius))
     padded = np.pad(array, ((radius, radius), (radius, radius)), mode="reflect")
     total = np.zeros((height, width), dtype=np.float32)
     size = radius * 2 + 1
@@ -167,9 +178,17 @@ def _replace_luminance(rgb: np.ndarray, target_y: np.ndarray, preserve: float) -
 def _interpolate_palette(
     value: np.ndarray, stops: Iterable[tuple[float, tuple[int, int, int]]]
 ) -> np.ndarray:
+    ordered = list(stops)
+    native = native_kernels()
+    if native is not None:
+        return native.palette(
+            np.require(value, dtype=np.float32, requirements=["C", "A"]),
+            [position for position, _ in ordered],
+            [color for _, color in ordered],
+            [max(right[0] - left[0], 1e-8) for left, right in zip(ordered, ordered[1:])],
+        )
     array = np.clip(np.asarray(value, dtype=np.float32), 0.0, 1.0)
     result = np.zeros(array.shape + (3,), dtype=np.float32)
-    ordered = list(stops)
     for (left_x, left_rgb), (right_x, right_rgb) in zip(ordered, ordered[1:]):
         selected = (array >= left_x) & (array <= right_x)
         factor = np.clip((array - left_x) / max(right_x - left_x, 1e-8), 0.0, 1.0)
@@ -364,6 +383,7 @@ class EvidenceFusionEngine:
         )
         provenance = {
             "openprism_version": "0.1.0",
+            "compute_backend": backend_info(),
             "algorithm": "no_fusion_zone_reference_only",
             "fusion_mode": "no_fusion_zone",
             "pixel_fusion_applied": False,
@@ -577,6 +597,7 @@ class EvidenceFusionEngine:
         )
         provenance = {
             "openprism_version": "0.1.0",
+            "compute_backend": backend_info(),
             "algorithm": "deterministic_confidence_aware_luminance_fusion",
             "fusion_mode": "pixel_fusion",
             "pixel_fusion_applied": bool(np.any(adaptive_weight > 0.0)),
